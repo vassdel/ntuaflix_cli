@@ -15,6 +15,7 @@ class Movie(models.Model):
     runtimeMinutes = models.IntegerField(null=True, blank=True)
     genres = models.CharField(max_length=255, null=True, blank=True)
     img_url_asset = models.URLField(null=True, blank=True)
+    average_rating = models.FloatField(default=0)
 
     def __str__(self):
         return self.primaryTitle

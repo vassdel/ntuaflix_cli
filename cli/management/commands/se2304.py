@@ -53,6 +53,17 @@ class Command(BaseCommand):
         addrating_parser.add_argument('--averageRating', required=True, type=float)
         addrating_parser.add_argument('--numVotes', required=True, type=int)
 
+        # Adding searchtitle subparser
+        searchtitle_parser = subparsers.add_parser('searchtitle')
+        searchtitle_parser.add_argument('--titlePart', required=True)
+
+        # Adding bygenre subparser
+        bygenre_parser = subparsers.add_parser('bygenre')
+        bygenre_parser.add_argument('--genre', required=True)
+        bygenre_parser.add_argument('--min', type=float, help='Minimum average rating', required=True)
+        bygenre_parser.add_argument('--from', dest='yrFrom', type=int, required=False)
+        bygenre_parser.add_argument('--to', dest='yrTo', type=int, required=False)
+
     def handle(self, *args, **options):
         subcommand = options['subcommand'] 
 #---------------------------------------------subcommands------------------------------------------------
@@ -70,6 +81,11 @@ class Command(BaseCommand):
             self.see_users()
         elif subcommand =='seemovies':
             self.see_movies()
+        elif subcommand == 'searchtitle':
+            self.search_title(options['titlePart'])
+        elif subcommand == 'bygenre':
+            self.search_by_genre(options['genre'], options.get('yrFrom'), options.get('yrTo'), options.get('min'))
+
 
     def add_user(self, username, password):
         try:
@@ -220,3 +236,39 @@ class Command(BaseCommand):
 
         # Output message
         self.stdout.write(f"Rating for movie {options['tconst']} added.")
+    
+    def search_title(self, titlePart):
+        # Perform a case-insensitive search for movies with a title containing titlePart
+        matching_movies = Movie.objects.filter(originalTitle__icontains=titlePart)
+        if matching_movies.exists():
+            self.stdout.write(f"Found {matching_movies.count()} movie(s) matching '{titlePart}':")
+            for movie in matching_movies:
+                self.stdout.write(f"ID: {movie.id}, Title: {movie.originalTitle}")
+        else:
+            self.stdout.write(f"No movies found matching '{titlePart}'.")
+
+    def search_by_genre(self, genre, yrFrom=None, yrTo=None, min_rating=None):
+        # Start with a query for movies matching the genre
+        matching_movies = Movie.objects.filter(genres__icontains=genre)
+
+        # Filter by minimum average rating if min_rating is provided
+        matching_movies = matching_movies.filter(average_rating__gte=min_rating)
+
+        # Filter by the year range if both yrFrom and yrTo are provided
+        if yrFrom is not None and yrTo is not None:
+            matching_movies = matching_movies.filter(startYear__gte=yrFrom, startYear__lte=yrTo)
+
+        if matching_movies.exists():
+            self.stdout.write(f"Found {matching_movies.count()} movie(s) in genre '{genre}' with a minimum rating of {min_rating}" if min_rating else f"Found {matching_movies.count()} movie(s) in genre '{genre}'")
+            if yrFrom and yrTo:
+                self.stdout.write(f" within the year range {yrFrom}-{yrTo}:")
+            for movie in matching_movies:
+                self.stdout.write(f"ID: {movie.id}, Title: {movie.primaryTitle}, Year: {movie.startYear}, Rating: {movie.average_rating}")
+        else:
+            message = f"No movies found for genre '{genre}'"
+            if min_rating:
+                message += f" with a minimum rating of {min_rating}"
+            if yrFrom and yrTo:
+                message += f" within the year range {yrFrom}-{yrTo}."
+            self.stdout.write(message)
+
