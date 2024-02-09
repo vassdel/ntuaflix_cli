@@ -3,6 +3,8 @@ from django.contrib.auth.models import User
 from django.db import IntegrityError
 import json
 from cli.models import Movie
+from cli.models import Name
+from cli.models import Participation
 
 class Command(BaseCommand):
     help = 'Custom Command for our WebApp (Gamo Tin Patra)'
@@ -64,6 +66,27 @@ class Command(BaseCommand):
         bygenre_parser.add_argument('--from', dest='yrFrom', type=int, required=False)
         bygenre_parser.add_argument('--to', dest='yrTo', type=int, required=False)
 
+        # Subparser for the addname command
+        addname_parser = subparsers.add_parser('addname')
+        addname_parser.add_argument('--nameID', required=True)
+        addname_parser.add_argument('--name', required=True)
+        addname_parser.add_argument('--namePoster')
+        addname_parser.add_argument('--birthYear', type=int)
+        addname_parser.add_argument('--deathYear', type=int)
+        addname_parser.add_argument('--profession')
+        addname_parser.add_argument('--titleID')  # Assuming a single title; you could modify this to accept multiple IDs
+        addname_parser.add_argument('--category')
+
+        # Subparser for the name command
+        name_parser = subparsers.add_parser('name')
+        name_parser.add_argument('--nameid', required=True)
+
+        # Subparser for the searchname command
+        searchname_parser = subparsers.add_parser('searchname')
+        searchname_parser.add_argument('--name', required=True)
+
+
+
     def handle(self, *args, **options):
         subcommand = options['subcommand'] 
 #---------------------------------------------subcommands------------------------------------------------
@@ -85,6 +108,12 @@ class Command(BaseCommand):
             self.search_title(options['titlePart'])
         elif subcommand == 'bygenre':
             self.search_by_genre(options['genre'], options.get('yrFrom'), options.get('yrTo'), options.get('min'))
+        elif subcommand == 'addname':
+            self.add_name(options)
+        elif subcommand == 'name':
+            self.show_name(options['nameid'])
+        elif subcommand == 'searchname':
+            self.search_name(options['name'])
 
 
     def add_user(self, username, password):
@@ -153,7 +182,6 @@ class Command(BaseCommand):
                                   f"Image URL: {movie.img_url_asset if movie.img_url_asset else 'N/A'}")
         else:
             self.stdout.write("No movies found.")
-
 
     def add_crew(self, options):
         # Define the path to your JSON file
@@ -272,3 +300,69 @@ class Command(BaseCommand):
                 message += f" within the year range {yrFrom}-{yrTo}."
             self.stdout.write(message)
 
+    def add_name(self, options):
+        try:
+            # Create the name entry
+            name = Name.objects.create(
+                nameID=options['nameID'],
+                name=options['name'],
+                namePoster=options.get('namePoster'),
+                birthYear=options.get('birthYear'),
+                deathYear=options.get('deathYear'),
+                profession=options.get('profession'),
+            )
+
+            # Create the participation entry if titleID and category are provided
+            if options.get('titleID') and options.get('category'):
+                movie = Movie.objects.get(tconst=options['titleID'])
+                Participation.objects.create(
+                    name=name,
+                    movie=movie,
+                    category=options['category']
+                )
+
+            # Output message
+            self.stdout.write(f"Producer {name.name} added successfully.")
+
+        except Exception as e:
+            self.stdout.write(f"An error occurred: {e}")
+
+    def show_name(self, nameid):
+        try:
+            # Retrieve the name entry
+            name = Name.objects.get(nameID=nameid)
+            
+            # Output the name attributes
+            self.stdout.write(f"Name ID: {name.nameID}")
+            self.stdout.write(f"Name: {name.name}")
+            self.stdout.write(f"Name Poster: {name.namePoster}")
+            self.stdout.write(f"Birth Year: {name.birthYear}")
+            self.stdout.write(f"Death Year: {name.deathYear}")
+            self.stdout.write(f"Profession: {name.profession}")
+
+            # Output the related participations
+            participations = name.nameTitles.all()
+            for participation in participations:
+                self.stdout.write(f"Title ID: {participation.tconst}")
+                self.stdout.write(f"Title: {participation.primaryTitle}")
+                self.stdout.write(f"Category: {Participation.objects.get(name=name, movie=participation).category}")
+
+        except Name.DoesNotExist:
+            self.stdout.write(f"No name found with Name ID: {nameid}")
+        except Exception as e:
+            self.stdout.write(f"An error occurred: {e}")
+
+    def search_name(self, name):
+        try:
+            # Perform a case-insensitive search for names containing the input
+            matching_names = Name.objects.filter(name__icontains=name)
+            
+            if matching_names.exists():
+                self.stdout.write(f"Found {matching_names.count()} name(s) containing '{name}':")
+                for name in matching_names:
+                    self.stdout.write(f"Name ID: {name.nameID}, Name: {name.name}")
+            else:
+                self.stdout.write(f"No names found containing '{name}'.")
+
+        except Exception as e:
+            self.stdout.write(f"An error occurred: {e}")
