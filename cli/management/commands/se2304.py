@@ -50,7 +50,7 @@ class Command(BaseCommand):
 
         # New subparser for the newcrew command
         newcrew_parser = subparsers.add_parser('newcrew')
-        newcrew_parser.add_argument('tsv_file', type=str)
+        newcrew_parser.add_argument('--filename', type=str, required=True, help='Path to the TSV file')
 
         # Subparser for the addepisode command
         addepisode_parser = subparsers.add_parser('addepisode')
@@ -97,20 +97,20 @@ class Command(BaseCommand):
 
         # Inside the add_arguments method, add the following code:
         newepisode_parser = subparsers.add_parser('newepisode')
-        newepisode_parser.add_argument('tsv_file', type=str)
+        newepisode_parser.add_argument('--filename', type=str, required=True, help='Path to the TSV file')
 
         # Inside the add_arguments method, add the following code:
         newratings_parser = subparsers.add_parser('newratings')
-        newratings_parser.add_argument('tsv_file', type=str)
+        newratings_parser.add_argument('--filename', type=str, required=True, help='Path to the TSV file')
 
         newprincipals_parser = subparsers.add_parser('newprincipals')
-        newprincipals_parser.add_argument('tsv_file', type=str)
+        newprincipals_parser.add_argument('--filename', type=str, required=True, help='Path to the TSV file')
 
         newnames_parser = subparsers.add_parser('newnames')
-        newnames_parser.add_argument('tsv_file', type=str)
+        newnames_parser.add_argument('--filename', type=str, required=True, help='Path to the TSV file')
 
         newakas_parser = subparsers.add_parser('newakas')
-        newakas_parser.add_argument('tsv_file', type=str)
+        newakas_parser.add_argument('--filename', type=str, required=True, help='Path to the TSV file')
         
         newtitles_parser = subparsers.add_parser('newtitles')
         newtitles_parser.add_argument('--filename', type=str, required=True, help='Path to the TSV file')
@@ -145,17 +145,17 @@ class Command(BaseCommand):
         elif subcommand == 'searchname':
             self.search_name(options['name'])
         elif subcommand == 'newcrew':
-            self.import_crew_from_tsv(options['tsv_file'])
+            self.import_crew_from_tsv(options)
         elif subcommand == 'newepisode':
-            self.import_episode(options['tsv_file'])
+            self.import_episode(options)
         elif subcommand == 'newratings':
-            self.import_rating(options['tsv_file'])
+            self.import_rating(options)
         elif subcommand == 'newprincipals':
-            self.import_principals(options['tsv_file'])
+            self.import_principals(options)
         elif subcommand == 'newnames':
-            self.import_names(options['tsv_file'])
+            self.import_names(options)
         elif subcommand == 'newakas':
-            self.import_akas(options['tsv_file'])
+            self.import_akas(options)
         elif subcommand == 'newtitles':
             self.import_titles(options)
 
@@ -252,8 +252,9 @@ class Command(BaseCommand):
 
         # Output message
         self.stdout.write(f"Crew for movie {options['tconst']} added.")
-#
-    def import_crew_from_tsv(self, tsv_file):
+# ok
+    def import_crew_from_tsv(self, options):
+        tsv_file = options['filename']
         with open(tsv_file, 'r') as file:
             reader = csv.DictReader(file, delimiter='\t')
             for row in reader:
@@ -406,7 +407,8 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(f"An error occurred: {e}")"""
 #
-    def import_episode(self, tsv_file):
+    def import_episode(self, options):
+        tsv_file = options['filename']
         with open(tsv_file, 'r') as file:
             reader = csv.DictReader(file, delimiter='\t')
             for row in reader:
@@ -430,8 +432,9 @@ class Command(BaseCommand):
                         self.stdout.write(f'Updated episode {episode}')
                 except ValidationError as e:
                     self.stdout.write(self.style.ERROR(f'Error creating/updating episode {tconst}: {e}'))
-#
-    def import_rating(self, tsv_file):
+# ok 
+    def import_rating(self, options):
+        tsv_file = options['filename']
         with open(tsv_file, 'r') as file:
             reader = csv.DictReader(file, delimiter='\t')
             for row in reader:
@@ -453,8 +456,9 @@ class Command(BaseCommand):
                         self.stdout.write(f'Updated rating {rating}')
                 except ValidationError as e:
                     self.stdout.write(self.style.ERROR(f'Error creating/updating rating {tconst}: {e}'))
-#
-    def import_principals(self, tsv_file):
+# ok
+    def import_principals(self, options):
+        tsv_file = options['filename']
         with open(tsv_file, 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter='\t')
             for row in reader:
@@ -484,7 +488,8 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.ERROR(f'Error {action} principals entry {tconst}: {e}'))
 
 #
-    def import_names(self, tsv_file):
+    def import_names(self, options):
+        tsv_file = options['filename']
         with open(tsv_file, 'r') as file:
             reader = csv.DictReader(file, delimiter='\t')
             for row in reader:
@@ -515,8 +520,9 @@ class Command(BaseCommand):
                 except ValidationError as e:
                     self.stdout.write(self.style.ERROR(f'Error creating/updating person {nconst}: {e}'))
 
-#
-    def import_akas(self, tsv_file):
+# ok
+    def import_akas(self, options):
+        tsv_file = options['filename']
         with open(tsv_file, 'r', encoding='utf-8') as file:  # Ensure correct encoding
             reader = csv.DictReader(file, delimiter='\t')
             for row in reader:
@@ -546,7 +552,7 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.SUCCESS(f'Successfully {action} Akas entry {akas_entry}'))
                 except ValidationError as e:
                     self.stdout.write(self.style.ERROR(f'Error {action} Akas entry {titleId}: {e}'))
-#
+# ok 
     def import_titles(self, options):
         tsv_file = options['filename']
         with open(tsv_file, 'r', encoding='utf-8') as file:
