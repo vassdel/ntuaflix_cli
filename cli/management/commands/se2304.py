@@ -161,17 +161,26 @@ class Command(BaseCommand):
 
     def add_user(self, username, password):
         try:
-            # Create a new user instance and save it to the database
-            user = User.objects.create_user(username=username, password=password)
-            user.save()
-
+            # Check if the user already exists
+            user, created = User.objects.get_or_create(username=username)
+            
+            # If the user was created, set the password
+            if created:
+                user.set_password(password)
+                user.save()
+                message = f"User {username} added successfully."
+            else:
+                # If the user exists, update the password
+                user.set_password(password)
+                user.save()
+                message = f"User {username}'s password updated successfully."
+            
             # Output message
-            self.stdout.write(f"User {username} added successfully.")
+            self.stdout.write(message)
 
-        except IntegrityError:
-            self.stdout.write(f"User {username} already exists.")
         except Exception as e:
             self.stdout.write(f"An error occurred: {e}")
+
 
     def see_users(self):
         users = User.objects.all()
