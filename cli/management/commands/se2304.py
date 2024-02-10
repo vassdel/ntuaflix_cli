@@ -11,6 +11,8 @@ from cli.models import Episode
 from cli.models import Ratings
 from cli.models import Principals
 from cli.models import Akas
+import subprocess
+import os
 
 class Command(BaseCommand):
     help = 'Custom Command for our WebApp (Gamo Tin Patra)'
@@ -113,7 +115,8 @@ class Command(BaseCommand):
         newtitles_parser = subparsers.add_parser('newtitles')
         newtitles_parser.add_argument('--filename', type=str, required=True, help='Path to the TSV file')
 
-
+        # Add subparser for resetall command
+        resetall_parser = subparsers.add_parser('resetall')
 
     def handle(self, *args, **options):
         subcommand = options['subcommand'] 
@@ -160,6 +163,8 @@ class Command(BaseCommand):
             self.import_akas(options)
         elif subcommand == 'newtitles':
             self.import_titles(options)
+        if subcommand == 'resetall':
+            self.resetall()
 
     def add_user(self, username, password):
         try:
@@ -709,3 +714,37 @@ class Command(BaseCommand):
                 self.stdout.write(f"No titles found containing '{title_part}'.")
         except Exception as e:
             self.stdout.write(f"An error occurred: {str(e)}")
+
+    # Reset all data and run CLI commands
+    def resetall(self):
+        # Delete all data from all models
+        self.stdout.write("Resetting all data in the database...")
+
+        # Delete data from Movies model
+        Movies.objects.all().delete()
+
+        # Delete data from other models (Names, Crews, Episode, Ratings, Principals, Akas)
+        # Replace ModelName with the actual model names
+        Names.objects.all().delete()
+        Crews.objects.all().delete()
+        Episode.objects.all().delete()
+        Ratings.objects.all().delete()
+        Principals.objects.all().delete()
+        Akas.objects.all().delete()
+
+        # Run CLI commands
+        self.stdout.write("Running CLI commands...")
+        self.run_cli_commands()
+
+        self.stdout.write(self.style.SUCCESS("Resetall completed successfully."))
+
+    # Run any necessary CLI commands after resetting the database
+    def run_cli_commands(self):
+        os.system("python manage.py se2304 newnames --filename truncated_name.basics.tsv")
+        os.system("python manage.py se2304 newakas --filename truncated_title.akas.tsv")
+        os.system("python manage.py se2304 newtitles --filename truncated_title.basics.tsv")
+        os.system("python manage.py se2304 newcrew --filename truncated_title.crew.tsv")
+        os.system("python manage.py se2304 newepisode --filename truncated_title.episode.tsv")
+        os.system("python manage.py se2304 newprincipals --filename truncated_title.principals.tsv")
+        os.system("python manage.py se2304 newratings --filename truncated_title.ratings.tsv")
+        
