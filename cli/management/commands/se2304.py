@@ -42,12 +42,6 @@ class Command(BaseCommand):
         #See movies in database
         seeusers_parser = subparsers.add_parser('seemovies')
 
-        # Subparser for the addcrew command
-        #addcrew_parser = subparsers.add_parser('addcrew')
-        #addcrew_parser.add_argument('--tconst', required=True)
-        #addcrew_parser.add_argument('--directors', required=True)
-        #addcrew_parser.add_argument('--writers', required=True)
-
         # New subparser for the newcrew command
         newcrew_parser = subparsers.add_parser('newcrew')
         newcrew_parser.add_argument('--filename', type=str, required=True, help='Path to the TSV file')
@@ -67,14 +61,14 @@ class Command(BaseCommand):
 
         # Adding searchtitle subparser
         searchtitle_parser = subparsers.add_parser('searchtitle')
-        searchtitle_parser.add_argument('--titlePart', required=True)
+        searchtitle_parser.add_argument('--titlepart', required=True)
 
         # Adding bygenre subparser
         bygenre_parser = subparsers.add_parser('bygenre')
-        bygenre_parser.add_argument('--genre', required=True)
-        bygenre_parser.add_argument('--min', type=float, help='Minimum average rating', required=True)
-        bygenre_parser.add_argument('--from', dest='yrFrom', type=int, required=False)
-        bygenre_parser.add_argument('--to', dest='yrTo', type=int, required=False)
+        bygenre_parser.add_argument('--genre', type=str, help='Genre of the movies to filter by.')
+        bygenre_parser.add_argument('--min', type=float, help='Minimum average rating of the movies.')
+        bygenre_parser.add_argument('--from', dest='from_year', type=str, help='Start year for filtering movies.', default=None)
+        bygenre_parser.add_argument('--to', dest='to_year', type=str, help='End year for filtering movies.', default=None)
 
         # Subparser for the addname command
         addname_parser = subparsers.add_parser('addname')
@@ -94,6 +88,10 @@ class Command(BaseCommand):
         # Subparser for the searchname command
         searchname_parser = subparsers.add_parser('searchname')
         searchname_parser.add_argument('--name', required=True)
+
+        # Subparser for the name command
+        title_parser = subparsers.add_parser('title')
+        title_parser.add_argument('--titleID', required=True)
 
         # Inside the add_arguments method, add the following code:
         newepisode_parser = subparsers.add_parser('newepisode')
@@ -135,15 +133,19 @@ class Command(BaseCommand):
         elif subcommand =='seemovies':
             self.see_movies()
         elif subcommand == 'searchtitle':
-            self.search_title(options['titlePart'])
+            self.search_title(options['titlepart'])
         elif subcommand == 'bygenre':
-            self.search_by_genre(options['genre'], options.get('yrFrom'), options.get('yrTo'), options.get('min'))
+            self.search_by_genre(options['genre'], options['min'], options.get('from_year'), options.get('to_year'))
         elif subcommand == 'addname':
             self.add_name(options)
         elif subcommand == 'name':
             self.show_name(options['nameid'])
+        elif subcommand == 'title':
+            self.show_title(options['titleID'])
         elif subcommand == 'searchname':
             self.search_name(options['name'])
+        elif subcommand == 'searchtitle':
+            self.search_title(options['titlepart'])
         elif subcommand == 'newcrew':
             self.import_crew_from_tsv(options)
         elif subcommand == 'newepisode':
@@ -342,70 +344,112 @@ class Command(BaseCommand):
         else:
             self.stdout.write(f"No movies found matching '{titlePart}'.")
 
-    def search_by_genre(self, genre, yrFrom=None, yrTo=None, min_rating=None):
-        # Start with a query for movies matching the genre
-        matching_movies = Movies.objects.filter(genres__icontains=genre)
+    def search_by_genre(self, genre, min_rating, from_year=None, to_year=None):
+        # Filter movies by genre
+        movies = Movies.objects.filter(genres__icontains=genre)
+        if from_year and to_year:
+            movies = movies.filter(startYear__gte=from_year, startYear__lte=to_year)
+        
+        # Get tconsts of filtered movies
+        movie_tconsts = movies.values_list('tconst', flat=True)
 
-        # Filter by minimum average rating if min_rating is provided
-        matching_movies = matching_movies.filter(average_rating__gte=min_rating)
+        # Filter ratings based on min_rating and the tconsts of the filtered movies
+        ratings = Ratings.objects.filter(tconst__in=movie_tconsts, averageRating__gte=min_rating)
 
-        # Filter by the year range if both yrFrom and yrTo are provided
-        if yrFrom is not None and yrTo is not None:
-            matching_movies = matching_movies.filter(startYear__gte=yrFrom, startYear__lte=yrTo)
+        # Now, get the tconsts from the filtered ratings to ensure we only consider movies with the required rating
+        rated_movie_tconsts = ratings.values_list('tconst', flat=True)
 
-        if matching_movies.exists():
-            self.stdout.write(f"Found {matching_movies.count()} movie(s) in genre '{genre}' with a minimum rating of {min_rating}" if min_rating else f"Found {matching_movies.count()} movie(s) in genre '{genre}'")
-            if yrFrom and yrTo:
-                self.stdout.write(f" within the year range {yrFrom}-{yrTo}:")
-            for movie in matching_movies:
-                self.stdout.write(f"ID: {movie.id}, Title: {movie.primaryTitle}, Year: {movie.startYear}, Rating: {movie.average_rating}")
+        # Finally, filter the movies again to get only those with the required ratings
+        final_movies = movies.filter(tconst__in=rated_movie_tconsts)
+
+        if final_movies.exists():
+            self.stdout.write(f"Found {final_movies.count()} movie(s) for genre '{genre}' with a minimum rating of {min_rating}")
+            if from_year and to_year:
+                self.stdout.write(f" within the year range {from_year}-{to_year}:")
+            for movie in final_movies:
+                # Since we already filtered ratings, we can safely assume each movie has at least one rating that matches.
+                # However, since Django doesn't directly support joins on non-foreign keys, we access the rating differently:
+                rating = Ratings.objects.get(tconst=movie.tconst).averageRating
+                self.stdout.write(f"ID: {movie.tconst}, Title: {movie.primaryTitle}, Year: {movie.startYear}, Rating: {rating}")
         else:
-            message = f"No movies found for genre '{genre}'"
-            if min_rating:
-                message += f" with a minimum rating of {min_rating}"
-            if yrFrom and yrTo:
-                message += f" within the year range {yrFrom}-{yrTo}."
+            message = f"No movies found for genre '{genre}' with a minimum rating of {min_rating}"
+            if from_year and to_year:
+                message += f" within the year range {from_year}-{to_year}."
             self.stdout.write(message)
 
-    """def show_name(self, nameid):
+    def show_name(self, nameid):
         try:
-            # Retrieve the name entry
-            name = Name.objects.get(nameID=nameid)
-            
-            # Output the name attributes
-            self.stdout.write(f"Name ID: {name.nameID}")
-            self.stdout.write(f"Name: {name.name}")
-            self.stdout.write(f"Name Poster: {name.namePoster}")
-            self.stdout.write(f"Birth Year: {name.birthYear}")
-            self.stdout.write(f"Death Year: {name.deathYear}")
-            self.stdout.write(f"Profession: {name.profession}")
+            # Retrieve the specified name entry
+            name = Names.objects.get(nconst=nameid)
 
-            # Output the related participations
-            participations = name.nameTitles.all()
-            for participation in participations:
-                self.stdout.write(f"Title ID: {participation.tconst}")
-                self.stdout.write(f"Title: {participation.primaryTitle}")
-                self.stdout.write(f"Category: {Participation.objects.get(name=name, movie=participation).category}")
+            # Prepare and output the name attributes
+            birthYear = 'N/A' if name.birthYear in [None, '\\N'] else name.birthYear
+            deathYear = 'N/A' if name.deathYear in [None, '\\N'] else name.deathYear
+            profession = 'N/A' if name.primaryProfession in [None, '\\N'] else name.primaryProfession
+            knownForTitles = 'N/A' if name.knownForTitles in [None, '\\N'] else name.knownForTitles
+            img_url_asset = 'N/A' if name.img_url_asset in [None, '\\N'] else name.img_url_asset
 
-        except Name.DoesNotExist:
-            self.stdout.write(f"No name found with Name ID: {nameid}")
+            self.stdout.write("Name ID: " + name.nconst)
+            self.stdout.write("Name: " + name.primaryName)
+            self.stdout.write("Birth Year: " + birthYear)
+            self.stdout.write("Death Year: " + deathYear)
+            self.stdout.write("Profession: " + profession)
+            self.stdout.write("Known For Titles: " + knownForTitles)
+            self.stdout.write("Image URL: " + img_url_asset)
+
+            # Retrieve participations of the name in Principals
+            participations = Principals.objects.filter(nconst=nameid)
+
+            if participations.exists():
+                self.stdout.write("Participations:")
+                for part in participations:
+                    # Retrieve the corresponding movie from Movies model
+                    movie = Movies.objects.get(tconst=part.tconst)  # Using get() here since tconst is expected to be unique
+                    job_display = 'N/A' if part.job in [None, '\\N'] else part.job
+                    characters_display = 'N/A' if part.characters in [None, '\\N'] else part.characters
+                    self.stdout.write(
+                        "Title ID: " + part.tconst + ", " +
+                        #"Title: " + movie.primaryTitle + ", " +
+                        "Category: " + part.category + ", " #+
+                        #"Job: " + job_display + ", " +
+                        #"Characters: " + characters_display
+                    )
+            else:
+                self.stdout.write("No participations found for this individual.")
+
+        except Names.DoesNotExist:
+            self.stdout.write("No name found with Name ID: " + nameid)
+        except Movies.DoesNotExist:
+            self.stdout.write("Movie not found for a participation entry.")
         except Exception as e:
-            self.stdout.write(f"An error occurred: {e}")"""
+            self.stdout.write("An error occurred: " + str(e))
 
-    """def search_name(self, name):
+    def search_name(self, name):
         try:
-            # Perform a case-insensitive search for names containing the input
-            matching_names = Name.objects.filter(name__icontains=name)
+            # Perform a case-insensitive search for names containing the search term
+            matching_names = Names.objects.filter(primaryName__icontains=name)
             
             if matching_names.exists():
                 self.stdout.write(f"Found {matching_names.count()} name(s) containing '{name}':")
-                for name in matching_names:
-                    self.stdout.write(f"Name ID: {name.nameID}, Name: {name.name}")
+                for name_entry in matching_names:
+                    # Replace '\\N' with 'N/A' and ensure the values are strings
+                    birthYear = 'N/A' if name_entry.birthYear in [None, '\\N'] else name_entry.birthYear
+                    deathYear = 'N/A' if name_entry.deathYear in [None, '\\N'] else name_entry.deathYear
+                    profession = 'N/A' if name_entry.primaryProfession in [None, '\\N'] else name_entry.primaryProfession
+                    knownForTitles = 'N/A' if name_entry.knownForTitles in [None, '\\N'] else name_entry.knownForTitles
+
+                    self.stdout.write(
+                        f"Name ID: {name_entry.nconst}, "
+                        f"Name: {name_entry.primaryName}, "
+                        f"Birth Year: {birthYear}, "
+                        f"Death Year: {deathYear}, "
+                        f"Profession: {profession}, "
+                        f"Known For Titles: {knownForTitles}"
+                    )
             else:
                 self.stdout.write(f"No names found containing '{name}'.")
-
         except Exception as e:
-            self.stdout.write(f"An error occurred: {e}")"""
+            self.stdout.write(f"An error occurred: {e}")
 #
     def import_episode(self, options):
         tsv_file = options['filename']
@@ -588,3 +632,80 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.SUCCESS(f'Successfully {action} movie entry {movie}'))
                 except ValidationError as e:
                     self.stdout.write(self.style.ERROR(f'Error {action} movie entry {tconst}: {e}'))
+
+    def show_title(self, titleid):
+        try:
+            # Retrieve the specified title entry
+            movie = Movies.objects.get(tconst=titleid)
+
+            # Output the movie attributes
+            self.stdout.write("Title ID: {}".format(movie.tconst))
+            self.stdout.write("Title Type: {}".format(movie.titleType))
+            self.stdout.write("Primary Title: {}".format(movie.primaryTitle))
+            self.stdout.write("Original Title: {}".format(movie.originalTitle))
+            self.stdout.write("Is Adult: {}".format('Yes' if movie.isAdult else 'No'))
+            self.stdout.write("Start Year: {}".format(movie.startYear if movie.startYear != '\\N' else 'N/A'))
+            self.stdout.write("End Year: {}".format(movie.endYear if movie.endYear != '\\N' else 'N/A'))
+            self.stdout.write("Runtime Minutes: {}".format(movie.runtimeMinutes if movie.runtimeMinutes != '\\N' else 'N/A'))
+            self.stdout.write("Genres: {}".format(movie.genres if movie.genres != '\\N' else 'N/A'))
+            self.stdout.write("Image URL: {}".format(movie.img_url_asset if movie.img_url_asset != '\\N' else 'N/A'))
+
+            # Retrieve the rating for the movie
+            rating = Ratings.objects.filter(tconst=titleid).first()
+            if rating:
+                self.stdout.write("Average Rating: {}".format(rating.averageRating))
+                self.stdout.write("Number of Votes: {}".format(rating.numVotes))
+
+            # Retrieve the principals for the movie
+            principals = Principals.objects.filter(tconst=titleid)
+            if principals.exists():
+                self.stdout.write("Principals:")
+                for principal in principals:
+                    name_entry = Names.objects.filter(nconst=principal.nconst).first()
+                    name_display = name_entry.primaryName if name_entry else 'Unknown'
+                    self.stdout.write(
+                        "Name ID: {}, Name: {}, Category: {}".format(
+                            principal.nconst, name_display, principal.category
+                        )
+                    )
+            else:
+                self.stdout.write("No principals found for this title.")
+
+        except Movies.DoesNotExist:
+            self.stdout.write("No title found with Title ID: {}".format(titleid))
+        except Ratings.DoesNotExist:
+            self.stdout.write("No ratings found for this title.")
+        except Exception as e:
+            self.stdout.write("An error occurred: {}".format(str(e)))
+
+    def search_title(self, title_part):
+        try:
+            # Use the `icontains` filter to perform a case-insensitive search for titles with a matching `originalTitle`
+            matching_titles = Movies.objects.filter(originalTitle__icontains=title_part)
+            
+            if matching_titles.exists():
+                self.stdout.write(f"Found {matching_titles.count()} title(s) containing '{title_part}':")
+                for movie in matching_titles:
+                    # Output the details of each matching movie
+                    start_year = 'N/A' if movie.startYear == '\\N' else movie.startYear
+                    end_year = 'N/A' if movie.endYear == '\\N' else movie.endYear
+                    runtime_minutes = 'N/A' if movie.runtimeMinutes == '\\N' else movie.runtimeMinutes
+                    genres = 'N/A' if movie.genres == '\\N' else movie.genres
+                    img_url_asset = 'N/A' if movie.img_url_asset == '\\N' else movie.img_url_asset
+
+                    self.stdout.write(
+                        f"Title ID: {movie.tconst}, "
+                        f"Title Type: {movie.titleType}, "
+                        f"Primary Title: {movie.primaryTitle}, "
+                        f"Original Title: {movie.originalTitle}, "
+                        f"Is Adult: {'Yes' if movie.isAdult else 'No'}, "
+                        f"Start Year: {start_year}, "
+                        f"End Year: {end_year}, "
+                        f"Runtime Minutes: {runtime_minutes}, "
+                        f"Genres: {genres}, "
+                        f"Image URL: {img_url_asset}"
+                    )
+            else:
+                self.stdout.write(f"No titles found containing '{title_part}'.")
+        except Exception as e:
+            self.stdout.write(f"An error occurred: {str(e)}")
