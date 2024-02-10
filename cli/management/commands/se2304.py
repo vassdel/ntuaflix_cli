@@ -113,7 +113,7 @@ class Command(BaseCommand):
         newakas_parser.add_argument('tsv_file', type=str)
         
         newtitles_parser = subparsers.add_parser('newtitles')
-        newtitles_parser.add_argument('tsv_file', type=str)
+        newtitles_parser.add_argument('--filename', type=str, required=True, help='Path to the TSV file')
 
 
 
@@ -157,7 +157,7 @@ class Command(BaseCommand):
         elif subcommand == 'newakas':
             self.import_akas(options['tsv_file'])
         elif subcommand == 'newtitles':
-            self.import_titles(options['tsv_file'])
+            self.import_titles(options)
 
     def add_user(self, username, password):
         try:
@@ -252,7 +252,7 @@ class Command(BaseCommand):
 
         # Output message
         self.stdout.write(f"Crew for movie {options['tconst']} added.")
-
+#
     def import_crew_from_tsv(self, tsv_file):
         with open(tsv_file, 'r') as file:
             reader = csv.DictReader(file, delimiter='\t')
@@ -405,7 +405,7 @@ class Command(BaseCommand):
 
         except Exception as e:
             self.stdout.write(f"An error occurred: {e}")"""
-
+#
     def import_episode(self, tsv_file):
         with open(tsv_file, 'r') as file:
             reader = csv.DictReader(file, delimiter='\t')
@@ -430,7 +430,7 @@ class Command(BaseCommand):
                         self.stdout.write(f'Updated episode {episode}')
                 except ValidationError as e:
                     self.stdout.write(self.style.ERROR(f'Error creating/updating episode {tconst}: {e}'))
-
+#
     def import_rating(self, tsv_file):
         with open(tsv_file, 'r') as file:
             reader = csv.DictReader(file, delimiter='\t')
@@ -453,7 +453,7 @@ class Command(BaseCommand):
                         self.stdout.write(f'Updated rating {rating}')
                 except ValidationError as e:
                     self.stdout.write(self.style.ERROR(f'Error creating/updating rating {tconst}: {e}'))
-
+#
     def import_principals(self, tsv_file):
         with open(tsv_file, 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter='\t')
@@ -483,7 +483,7 @@ class Command(BaseCommand):
                 except ValidationError as e:
                     self.stdout.write(self.style.ERROR(f'Error {action} principals entry {tconst}: {e}'))
 
-
+#
     def import_names(self, tsv_file):
         with open(tsv_file, 'r') as file:
             reader = csv.DictReader(file, delimiter='\t')
@@ -515,6 +515,7 @@ class Command(BaseCommand):
                 except ValidationError as e:
                     self.stdout.write(self.style.ERROR(f'Error creating/updating person {nconst}: {e}'))
 
+#
     def import_akas(self, tsv_file):
         with open(tsv_file, 'r', encoding='utf-8') as file:  # Ensure correct encoding
             reader = csv.DictReader(file, delimiter='\t')
@@ -545,8 +546,9 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.SUCCESS(f'Successfully {action} Akas entry {akas_entry}'))
                 except ValidationError as e:
                     self.stdout.write(self.style.ERROR(f'Error {action} Akas entry {titleId}: {e}'))
-
-    def import_titles(self, tsv_file):
+#
+    def import_titles(self, options):
+        tsv_file = options['filename']
         with open(tsv_file, 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter='\t')
             for row in reader:
