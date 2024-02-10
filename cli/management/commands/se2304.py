@@ -6,11 +6,14 @@ from cli.models import Movies
 from cli.models import Names
 from django.core.exceptions import ValidationError
 import csv
+import requests 
 from cli.models import Crews
 from cli.models import Episode
 from cli.models import Ratings
 from cli.models import Principals
 from cli.models import Akas
+from django.contrib.auth import authenticate
+from django.http import JsonResponse
 
 class Command(BaseCommand):
     help = 'Custom Command for our WebApp (Gamo Tin Patra)'
@@ -25,6 +28,11 @@ class Command(BaseCommand):
 
         # See users in database
         seeusers_parser = subparsers.add_parser('seeusers')
+
+        # Subparser for the login command
+        login_parser = subparsers.add_parser('login')
+        login_parser.add_argument('--username', required=True)
+        login_parser.add_argument('--password', required=True)
 
         # Subparser for the addmovie command
         addmovie_parser = subparsers.add_parser('addmovie')
@@ -158,6 +166,8 @@ class Command(BaseCommand):
             self.import_akas(options)
         elif subcommand == 'newtitles':
             self.import_titles(options)
+        elif subcommand == 'login':
+            self.login_user(options)
 
     def add_user(self, username, password):
         try:
@@ -180,7 +190,6 @@ class Command(BaseCommand):
 
         except Exception as e:
             self.stdout.write(f"An error occurred: {e}")
-
 
     def see_users(self):
         users = User.objects.all()
@@ -597,3 +606,39 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.SUCCESS(f'Successfully {action} movie entry {movie}'))
                 except ValidationError as e:
                     self.stdout.write(self.style.ERROR(f'Error {action} movie entry {tconst}: {e}'))
+
+    def login_user(self, options):
+        # Assuming you're receiving 'username' and 'password' as POST parameters
+        username = options['username']
+        password = options['password']
+        
+        # Authenticate the user
+        user = authenticate(username=username, password=password)
+        
+        if user is not None:
+            # User is authenticated
+            mydata = {
+                'username': username,
+                'password': password,
+            }
+            
+            user = 'user.json'
+            with open(user, 'w') as file:
+                json.dump(mydata, file, indent=4)
+
+
+            '''# Make a POST request
+            response = requests.post(
+                'http://127.0.0.1:8000/application/x-www-form-urlencoded/', 
+                data=mydata, 
+            )
+            
+            if response.status_code == 200:
+                # Success
+                return JsonResponse({'message': 'Logged in and data posted successfully.'})
+            else:
+                # Failed to post data
+                return JsonResponse({'error': 'Failed to post data to the endpoint.'}, status=500)
+        else:
+            # Authentication failed
+            return JsonResponse({'error': 'Invalid username or password.'}, status=401)'''
