@@ -627,18 +627,17 @@ class Command(BaseCommand):
                 json.dump(mydata, file, indent=4)
 
 
-            '''# Make a POST request
-            response = requests.post(
-                'http://127.0.0.1:8000/application/x-www-form-urlencoded/', 
-                data=mydata, 
-            )
+            # Define the URL to which you want to make the POST request
+            post_url = 'http://127.0.0.1:8000/application/x-www-form-urlencoded/'  # Change this to your actual endpoint URL
             
+            # Make the POST request with JSON data
+            headers = {'Content-Type': 'application/json'}  # Ensure the server expects JSON
+            response = requests.post(post_url, json=mydata, headers=headers)
+            
+            # Check response status (optional)
             if response.status_code == 200:
-                # Success
-                return JsonResponse({'message': 'Logged in and data posted successfully.'})
+                print("Data successfully posted.")
             else:
-                # Failed to post data
-                return JsonResponse({'error': 'Failed to post data to the endpoint.'}, status=500)
+                print("Failed to post data. Status code:", response.status_code)
         else:
-            # Authentication failed
-            return JsonResponse({'error': 'Invalid username or password.'}, status=401)'''
+            print("Authentication failed.")
