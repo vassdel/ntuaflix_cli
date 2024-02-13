@@ -621,10 +621,6 @@ class Command(BaseCommand):
                 'username': username,
                 'password': password,
             }
-            
-            user = 'user.json'
-            with open(user, 'w') as file:
-                json.dump(mydata, file, indent=4)
 
 
             # Define the URL to which you want to make the POST request
